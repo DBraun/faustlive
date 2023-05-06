@@ -6,7 +6,6 @@ VERSION := $(shell cat ../version.txt)
 BUILDDIR ?= builddir
 MAKE   ?= make
 CMAKE  ?= cmake
-DEST   ?= .
 FAUSTLIBS := $(wildcard ../Resources/Libs/*.lib)
 FAUST  ?= faust
 CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Release
@@ -77,8 +76,6 @@ package: $(README)
 	$(MAKE) cmake CMAKEOPT='-DPREFIX=../$(PACK)'
 	$(MAKE) install
 	hdiutil create $(PACK).dmg -fs HFS+ -srcfolder $(PACK) -format UDBZ -ov
-	@echo "Warning: package target has changed the install PREFIX"
-	mv $(PACK).dmg $(DEST)
 
 submodules = Resources/Libs
 dist : DIST:= FaustLive-$(VERSION)

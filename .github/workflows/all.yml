@@ -3,6 +3,7 @@ name: faustlive
 env:
   FAUSTLIVE_VERSION: 2.5.15
   FAUST_VERSION: 2.59.2
+  CMAKE_OSX_DEPLOYMENT_TARGET: 10.15
 
 # Controls when the action will run.
 on:
