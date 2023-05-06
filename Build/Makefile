@@ -8,6 +8,10 @@ MAKE   ?= make
 CMAKE  ?= cmake
 DEST   ?= .
 FAUSTLIBS := $(wildcard ../Resources/Libs/*.lib)
+FAUST  ?= faust
+CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Release
+USE_STATIC_SNDFILE ?= 0
+FAUST_PATH_IS_ABSOLUTE ?= 0
 README  := README.html
 CHGELOG := ../changelog.txt
 
@@ -21,7 +25,7 @@ faustlive: $(BUILDDIR)
 	$(CMAKE) --build $(BUILDDIR) --config Release
 
 cmake: $(BUILDDIR)
-	cd $(BUILDDIR) && $(CMAKE) .. $(CMAKEOPT) $(GENERATOR)
+	cd $(BUILDDIR) && $(CMAKE) .. $(CMAKEOPT) $(GENERATOR) -DFAUST_PATH_IS_ABSOLUTE=$(FAUST_PATH_IS_ABSOLUTE) -DFAUST="$(FAUST)" -DUSE_STATIC_SNDFILE=$(USE_STATIC_SNDFILE)
 
 $(BUILDDIR):
 	mkdir $(BUILDDIR)
@@ -89,7 +93,7 @@ dist :
 	rm -rf $(DIST)
 
 release: 
-	git pull --rebase
+# 	git pull --rebase
 	$(MAKE) clean
 	$(MAKE)
 	$(MAKE) package

@@ -35,61 +35,45 @@ endif()
 
 
 #######################################
-# faust settings
-execute_process(COMMAND faust  -libdir
-                OUTPUT_VARIABLE FAUST_LIBRARY_DIR_TMP
-                RESULT_VARIABLE FAUST_FOUND)
-if (NOT FAUST_FOUND EQUAL 0)
-	message (FATAL "faust not found: ${FAUST_FOUND}")
-endif()
-execute_process(COMMAND faust  -includedir OUTPUT_VARIABLE FAUST_INCLUDE_DIRS_TMP )
-execute_process(COMMAND faust  -v OUTPUT_VARIABLE FAUST_VERSION_TMP )
-string(REGEX REPLACE "\n$" "" FAUST_LIBRARY_DIR "${FAUST_LIBRARY_DIR_TMP}")
-string(REGEX REPLACE "\n$" "" FAUST_INCLUDE_DIRS "${FAUST_INCLUDE_DIRS_TMP}")
-string(REGEX MATCH "Version [0-9.]*" FAUST_VERSION ${FAUST_VERSION_TMP})
-if (WIN32)
-	string (REPLACE "\\" "/" WFAUST_LIBRARY_DIR ${FAUST_LIBRARY_DIR})
-	string (REPLACE "\\" "/" WFAUST_INCLUDE_DIRS ${FAUST_INCLUDE_DIRS})
-	set (FAUST_INCLUDE_DIRS ${WFAUST_INCLUDE_DIRS})
-	set (FAUST_LIBRARIES ${WFAUST_LIBRARY_DIR}/libfaust.lib ${WFAUST_LIBRARY_DIR}/libOSCFaust.lib ${WFAUST_LIBRARY_DIR}/libHTTPDFaust.lib)
+# Faust part
+if(DEFINED FAUST_PATH_IS_ABSOLUTE AND FAUST_PATH_IS_ABSOLUTE MATCHES "1")
+# We can't execute an arm64 faust executable on a GitHub x86 runner,
+# so we make some strong assumptions about where the include and libs are.
+cmake_path(GET FAUST PARENT_PATH FAUST_DIR)
+cmake_path(GET FAUST_DIR PARENT_PATH FAUST_DIR)
+set(FAUST_INCLUDE_DIRS ${FAUST_DIR}/include)
+set(FAUSTLIB ${FAUST_DIR}/lib)
+string ( STRIP ${FAUST_INCLUDE_DIRS} FAUST_INCLUDE_DIRS )
+message("USING FAUST_INCLUDE_DIRS ${FAUST_INCLUDE_DIRS}")
 else()
-	set (FAUST_LIBRARIES "-L${FAUST_LIBRARY_DIR}" -lfaust -lHTTPDFaust -lOSCFaust)
-	set (FAUSTLIVE_RPATH ${FAUSTLIVE_RPATH} ${FAUST_LIBRARY_DIR})
+if (NOT DEFINED FAUST)
+	set (FAUST faust)
 endif()
-message (STATUS "Using Faust ${FAUST_VERSION}")
+message (STATUS "Using Faust as ${FAUST}")
+execute_process (COMMAND ${FAUST} --includedir OUTPUT_VARIABLE FINC)
+string ( STRIP ${FINC} FAUST_INCLUDE_DIRS )
+execute_process (COMMAND ${FAUST} --libdir OUTPUT_VARIABLE FLIB)
+string ( STRIP ${FLIB} FAUSTLIB )
 
+message (STATUS "Using Faust libraries from ${FAUSTLIB}")
+endif()
 
-#######################################
-# llvm settings
-if (NOT DEFINED LLVM_CONFIG)
-	set (LLVM_CONFIG llvm-config)
-endif()
-execute_process(COMMAND ${LLVM_CONFIG}  --version
-               OUTPUT_VARIABLE LLVM_VERSION_TMP
-               RESULT_VARIABLE LLVM_FOUND)
-if (NOT LLVM_FOUND EQUAL 0)
-	message (FATAL " ${LLVM_CONFIG} not found: ${LLVM_FOUND}")
-endif()
-execute_process(COMMAND ${LLVM_CONFIG}  --ldflags OUTPUT_VARIABLE LLVM_LDFLAGS_TMP )
-execute_process(COMMAND ${LLVM_CONFIG}  --libdir OUTPUT_VARIABLE LLVM_LIBDIR )
-execute_process(COMMAND ${LLVM_CONFIG}  --libs OUTPUT_VARIABLE LLVM_LIBRARIES_TMP1 )
-execute_process(COMMAND ${LLVM_CONFIG}  --system-libs OUTPUT_VARIABLE LLVM_LIBRARIES_TMP2 )
-string(REGEX REPLACE "\n$" "" LLVM_VERSION "${LLVM_VERSION_TMP}")
-string(REGEX REPLACE " *\n$" "" LLVM_LIBRARIES "${LLVM_LIBRARIES_TMP1}")
-string(REGEX REPLACE " *\n$" "" LLVM_SYS_LIBRARIES "${LLVM_LIBRARIES_TMP2}")
-string(REGEX REPLACE " *\n$" "" LLVM_LDFLAGS "${LLVM_LDFLAGS_TMP}")
-string(REGEX REPLACE "\n$" "" LLVM_RPATH "${LLVM_LIBDIR}")
+# compiler dependent settings
 if (WIN32)
-	# MSVC link.exe expects semicolon separated .lib files
-	string ( REPLACE " " ";" LLVM_LIBRARIES_LIST ${LLVM_LIBRARIES} )
-	set (LLVM_LIBRARIES ${LLVM_LIBRARIES_LIST}) # ${LLVM_SYS_LIBRARIES})
+	set (FAUST_LIBRARIES ${FAUSTLIB}/libfaustwithllvm.lib ${FAUSTLIB}/libOSCFaust.lib ${FAUSTLIB}/libHTTPDFaust.lib)
+	set (WINSRC ${MAXSDK}/max-includes/common/dllmain_win.c ${MAXSDK}/max-includes/common/commonsyms.c)
 else()
-	set (LLVM_LIBRARIES ${LLVM_LDFLAGS} ${LLVM_LIBRARIES} ${LLVM_SYS_LIBRARIES})
-	set (FAUSTLIVE_RPATH ${FAUSTLIVE_RPATH} ${LLVM_RPATH})
-endif()
-set (LLVM_DEFINES -DLLVM_VERSION="${LLVM_VERSION}")
+	
+	if(DEFINED FAUST_PATH_IS_ABSOLUTE AND FAUST_PATH_IS_ABSOLUTE MATCHES "1")
+	set (FAUST_LIBRARIES ${FAUSTLIB}/libfaustwithllvm.a ${FAUSTLIB}/libOSCFaust.a ${FAUSTLIB}/libHTTPDFaust.a)
+	else()
+	execute_process( COMMAND faust-config --system-libs OUTPUT_VARIABLE FC_OUTPUT RESULT_VARIABLE FC_RESULT)
+	string(REPLACE " " ";" FC_OUTPUT ${FC_OUTPUT})
+	string(STRIP "${FC_OUTPUT}" FC_OUTPUT)
+	set (FAUST_LIBRARIES ${FAUSTLIB}/libfaustwithllvm.a ${FC_OUTPUT} -L/opt/local/lib ${FAUSTLIB}/libOSCFaust.a ${FAUSTLIB}/libHTTPDFaust.a)
+	endif()
 
-message (STATUS "Using LLVM version ${LLVM_VERSION}")
+endif()
 
 #######################################
 # Qt settings
@@ -117,15 +101,73 @@ set (FAUSTLIVE_HEADERS ${FAUSTLIVE_HEADERS} ${FAUST_INCLUDE_DIRS}/faust/gui/QTUI
 #message ("FAUSTLIVE_HEADERS ${FAUSTLIVE_HEADERS}")
 
 #######################################
+# manual libmicrohttpd settings
+macro (set_pkg_config_path)
+	set (PP $ENV{PKG_CONFIG_PATH})
+	foreach(A ${PP})
+		string (REPLACE "\\" "/" A1 ${A} )
+		string (REGEX REPLACE "C:/msys[^/]*" "" A2 ${A1} )
+		set (LP "${LP}:${A2}")
+	endforeach()
+	set (ENV{PKG_CONFIG_PATH} ${LP} )
+endmacro()
+
+#######################################
+# libmicrohttpd settings
+if (LIBMICROHTTPD_CFLAGS AND LIBMICROHTTPD_LDFLAGS)
+	message(STATUS "Using manual cflags '${LIBMICROHTTPD_CFLAGS}' and ldflags '${LIBMICROHTTPD_LDFLAGS}' for libmicrohttpd")
+else()
+if (WIN32 AND MSVC)
+	set (LMHDIR ${ROOT}/lib/libmicrohttpd/x64)
+	set (LMHLIB ${LMHDIR}/libmicrohttpd.lib)
+	set (INCLUDE ${INCLUDE} ${LMHDIR})
+else ()
+	find_package(PkgConfig REQUIRED)
+	if (${PKG_CONFIG_FOUND})
+		if (BUILD_HTTP_STATIC)
+		set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+		list(APPEND PKG_CONFIG_EXECUTABLE "--static")  # append temporarily
+		endif()
+		pkg_check_modules(LMHD IMPORTED_TARGET libmicrohttpd)
+		if (BUILD_HTTP_STATIC)
+		list(POP_BACK PKG_CONFIG_EXECUTABLE)  # undo the append above
+		endif()
+
+		if (${LMHD_FOUND})
+			foreach (A ${LMHD_CFLAGS})
+				set(LIBMICROHTTPD__CFLAGS "${LIBMICROHTTPD__CFLAGS} ${A}")
+			endforeach()
+			foreach (A ${LMHD_LDFLAGS})
+				set(LIBMICROHTTPD__LDFLAGS "${LIBMICROHTTPD__LDFLAGS} ${A}")
+			endforeach()
+			message (STATUS "Found libmicrohttpd ${LMHD_VERSION}")
+		else ()
+			message (WARNING "Cannot locate libmicrohttpd: skip ${TARGET} generation")
+			return ()
+		endif()
+	else()
+		message (WARNING "No pkg-config, cannot locate libmicrohttpd: skip ${TARGET} generation")
+		return ()
+	endif()
+endif()
+endif()
+
+if ( WIN32 OR MSYS )
+	if (MSVC)
+		set (LIBMICROHTTPD__LDFLAGS "${LIBMICROHTTPD__LDFLAGS} ws2_32" )
+	else()
+		set (LIBMICROHTTPD__LDFLAGS "-lws2_32 ${LIBMICROHTTPD__LDFLAGS}" )
+	endif()
+endif()
+
+#######################################
 # libmicrohttpd settings
 if (WIN32)
-	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${LOCALLIBDIR}/libmicrohttpd/x64/libmicrohttpd.lib)
-	set (FAUSTLIVE_INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS} ${LOCALLIBDIR}/libmicrohttpd)
+	set (FAUSTLIVE_DEFINITIONS ${FAUSTLIVE_DEFINITIONS} -D_WIN32 -DMHD_W32LIB)
+	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${LMHLIB})
+	set (FAUSTLIVE_INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS} ${LMHDIR})
 else()
-	pkg_check_modules (LMHTTPD REQUIRED libmicrohttpd)
-	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${LMHTTPD_LDFLAGS})
-	set (FAUSTLIVE_INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS} ${LMHTTPD_INCLUDE_DIRS})
-	set (FAUSTLIVE_RPATH ${FAUSTLIVE_RPATH} ${LMHTTPD_LIBRARY_DIRS})
+	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} PkgConfig::LMHD)
 endif()
 
 #######################################
@@ -138,10 +180,33 @@ if (WIN32)
 	set (FAUSTLIVE_INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS}  ${LIBSNDFILE}/include)
 	set (FAUSTLIVE_DEFINITIONS ${FAUSTLIVE_DEFINITIONS} -D_WIN32 -DUSEWINMAIN)
 else()
-	pkg_check_modules (SNDFILE REQUIRED sndfile)
-	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${SNDFILE_LDFLAGS} -lcurl)
+	find_package(PkgConfig REQUIRED)
+	if (DEFINED USE_STATIC_SNDFILE AND "${USE_STATIC_SNDFILE}" STREQUAL "1" )
+		# We expect the user to have built libsndfile as a static lib
+		# and for it to be accessible via `pkg-config --static libsndfile`
+		set(SNDFILE_IS_STATIC 1)
+		set(CMAKE_FIND_LIBRARY_SUFFIXES .a)
+		list(APPEND PKG_CONFIG_EXECUTABLE "--static")  # append temporarily
+		pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
+		pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
+		pkg_check_modules(VORBIS REQUIRED IMPORTED_TARGET vorbis)
+		pkg_check_modules(OGG REQUIRED IMPORTED_TARGET ogg)
+		pkg_check_modules(OPUS REQUIRED IMPORTED_TARGET opus)
+		pkg_check_modules(MPG123 REQUIRED IMPORTED_TARGET libmpg123)
+		list(POP_BACK PKG_CONFIG_EXECUTABLE)  # undo the append above
+	else()
+		# We expect the user to have installed sndfile with
+		# brew install libsndfile
+		set(SNDFILE_IS_STATIC 1)
+		pkg_check_modules(SNDFILE REQUIRED IMPORTED_TARGET sndfile)
+		pkg_check_modules(FLAC REQUIRED IMPORTED_TARGET flac)
+		pkg_check_modules(VORBIS REQUIRED IMPORTED_TARGET vorbis)
+		pkg_check_modules(OGG REQUIRED IMPORTED_TARGET ogg)
+		pkg_check_modules(OPUS REQUIRED IMPORTED_TARGET opus)
+		pkg_check_modules(MPG123 REQUIRED IMPORTED_TARGET libmpg123)
+	endif()
+	set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} -lcurl PkgConfig::SNDFILE PkgConfig::FLAC PkgConfig::VORBIS PkgConfig::OGG PkgConfig::OPUS PkgConfig::MPG123)
 	set (FAUSTLIVE_INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS} ${SNDFILE_INCLUDE_DIRS})
-	set (FAUSTLIVE_RPATH ${FAUSTLIVE_RPATH} ${SNDFILE_LIBRARY_DIRS})
 endif()
 
 #######################################
@@ -214,8 +279,8 @@ set ( FAUSTLIVE_SRC 	${FAUSTLIVE_SRC} 	 ${AUDIO_SRC})
 set ( FAUSTLIVE_HEADERS ${FAUSTLIVE_HEADERS} ${AUDIO_HEADERS})
 
 set (INCLUDE_DIRS ${FAUSTLIVE_INCLUDE_DIRS} ${QTINCDIRS} ${FAUST_INCLUDE_DIRS})
-set (FAUSTLIVE_DEFINITIONS ${FAUSTLIVE_DEFINITIONS} -DVERSION="${VERSION}" -DAPP_VERSION="2.8" -DHTTPCTRL -DQRCODECTRL ${LLVM_DEFINES})
-set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${FAUST_LIBRARIES} ${QTLIBS} ${LLVM_LIBRARIES} ${LIBMICROHPPTD_LIBRARIES})
+set (FAUSTLIVE_DEFINITIONS ${FAUSTLIVE_DEFINITIONS} -DVERSION="${VERSION}" -DAPP_VERSION="2.8" -DHTTPCTRL -DQRCODECTRL)
+set (FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES} ${FAUST_LIBRARIES} ${QTLIBS} ${LIBMICROHPPTD_LIBRARIES})
 #message ("FAUSTLIVE_LIBRARIES ${FAUSTLIVE_LIBRARIES}")
 
 

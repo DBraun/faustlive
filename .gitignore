@@ -13,3 +13,5 @@ FaustLive*.tar.gz
 builddir
 Build/bin
 Build/FaustLive*.exe
+Qt/*
+libfaust/*
