@@ -41,10 +41,6 @@
 
 #include <QObject>
 
-#undef min
-#undef std::max
-
-
 #define POSTBUFFERSIZE 512
 
 #define GET 0

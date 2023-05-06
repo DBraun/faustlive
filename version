@@ -61,6 +61,10 @@ echo " updating $FLPL"
 sed -e "s/>[1-9][0-9]*\.[0-9]*\.[0-9]*</>$VERSION</" $FLPL > TMP$$
 mv -f TMP$$ $FLPL
 
+FAUSTLIVE_WORKFLOW=$ROOT/.github/workflows/all.yml
+echo " updating $FAUSTLIVE_WORKFLOW"
+sed "s/FAUSTLIVE_VERSION*: *..*/FAUSTLIVE_VERSION: $VERSION/" $FAUSTLIVE_WORKFLOW > TMP$$
+mv -f TMP$$ $FAUSTLIVE_WORKFLOW
 
 echo "### You need to recompile FaustLive for the change to take effect."
 
