@@ -10,7 +10,7 @@ FAUSTLIBS := $(wildcard ../Resources/Libs/*.lib)
 FAUST  ?= faust
 CMAKEOPT ?= -DCMAKE_BUILD_TYPE=Release
 USE_STATIC_SNDFILE ?= 0
-BUILD_HTTP_STATIC := OFF
+BUILD_HTTP_STATIC ?= OFF
 FAUST_PATH_IS_ABSOLUTE ?= 0
 README  := README.html
 CHGELOG := ../changelog.txt
