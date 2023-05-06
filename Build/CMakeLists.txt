@@ -52,6 +52,7 @@ endif()
 message (STATUS "Using Faust as ${FAUST}")
 execute_process (COMMAND ${FAUST} --includedir OUTPUT_VARIABLE FINC)
 string ( STRIP ${FINC} FAUST_INCLUDE_DIRS )
+string (REPLACE "\\" "/" FAUST_INCLUDE_DIRS ${FAUST_INCLUDE_DIRS} )
 execute_process (COMMAND ${FAUST} --libdir OUTPUT_VARIABLE FLIB)
 string ( STRIP ${FLIB} FAUSTLIB )
 

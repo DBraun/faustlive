@@ -115,12 +115,12 @@ jobs:
           CMAKE_OSX_ARCHITECTURES: ${{matrix.CMAKE_OSX_ARCHITECTURES}}
 
       - name: Build everything
-        # todo: do we need to specify the qt@5 path for PKG_CONFIG_PATH?
         run: |
           export FAUST=$PWD/libfaust/bin/faust
           export FAUST_PATH_IS_ABSOLUTE=1
           export BUILD_HTTP_STATIC=ON
           export USE_STATIC_SNDFILE=1
+          export Qt5_DIR=$(brew info qt@5 | grep -o '.*/Cellar/qt@5/[^ ]*')/lib/cmake/Qt5
           export PKG_CONFIG_PATH="/usr/local/opt/qt@5/lib/pkgconfig:$PWD/libsndfile/install/lib/pkgconfig:$PWD/libmicrohttpd/libmicrohttpd/lib/pkgconfig"
           export CMAKEOPT="-DCMAKE_OSX_ARCHITECTURES="$CMAKE_OSX_ARCHITECTURES" -DCMAKE_OSX_DEPLOYMENT_TARGET=$CMAKE_OSX_DEPLOYMENT_TARGET -DCMAKE_BUILD_TYPE=Release"
 
