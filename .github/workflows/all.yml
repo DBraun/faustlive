@@ -135,7 +135,7 @@ jobs:
         uses: actions/upload-artifact@v3
         with:
           name: FaustLive-${{env.FAUSTLIVE_VERSION}}-${{ matrix.name }}.dmg
-          path: build/FaustLive-${{env.FAUSTLIVE_VERSION}}-${{matrix.name}}.dmg
+          path: Build/FaustLive-${{env.FAUSTLIVE_VERSION}}.dmg
           if-no-files-found: error
 
   build-windows:
