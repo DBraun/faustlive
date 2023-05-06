@@ -102,18 +102,6 @@ set (FAUSTLIVE_HEADERS ${FAUSTLIVE_HEADERS} ${FAUST_INCLUDE_DIRS}/faust/gui/QTUI
 #message ("FAUSTLIVE_HEADERS ${FAUSTLIVE_HEADERS}")
 
 #######################################
-# manual libmicrohttpd settings
-macro (set_pkg_config_path)
-	set (PP $ENV{PKG_CONFIG_PATH})
-	foreach(A ${PP})
-		string (REPLACE "\\" "/" A1 ${A} )
-		string (REGEX REPLACE "C:/msys[^/]*" "" A2 ${A1} )
-		set (LP "${LP}:${A2}")
-	endforeach()
-	set (ENV{PKG_CONFIG_PATH} ${LP} )
-endmacro()
-
-#######################################
 # libmicrohttpd settings
 if (LIBMICROHTTPD_CFLAGS AND LIBMICROHTTPD_LDFLAGS)
 	message(STATUS "Using manual cflags '${LIBMICROHTTPD_CFLAGS}' and ldflags '${LIBMICROHTTPD_LDFLAGS}' for libmicrohttpd")

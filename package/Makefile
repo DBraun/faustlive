@@ -30,7 +30,6 @@ help:
 	@echo "  windows"
 	@echo "  dist"
 	
-macos: FLIBS  := $(otool -L build/$(NAME)/FaustLive.app/Contents/MacOS/FaustLive | grep lib | grep -i faust | sed -e 's/dylib..*/dylib/' | sed -e 's/.rpath.//')
 macos: build README.html
 	macdeployqt $(FLDIR)/FaustLive.app
 	cd build && cmake ..
